@@ -330,22 +330,82 @@ def get(id: int):
             'sources': record.llm_sources
         })
     
+    # Get all URLs for this question
+    all_urls = urls(where="question_id = ?", where_args=[id])
+    
+    # Create pairs of answers for comparison
+    answer_pairs = []
+    for i in range(0, len(all_answers), 2):
+        if i + 1 < len(all_answers):
+            answer_pairs.append((all_answers[i], all_answers[i + 1]))
+    
     return Titled(f"Select Best Answer for: {q.text}",
         Container(
             H2(q.text),
             *[Card(
-                H3(f"Answer Option {i+1}"),
-                P(answer['text']),
-                P(f"Type: {answer['type']}"),
-                *([] if not answer['sources'] else [P("Sources:", answer['sources'])]),
-                Form(
-                    Hidden(name="answer_id", value=answer['record_id']),
-                    Hidden(name="answer_type", value="user" if answer['type'] == 'User Answer' else "llm"),
-                    Hidden(name="question_id", value=id),
-                    Button("Select as Best Answer", type="submit"),
-                    hx_post=f"/best-answers/{id}/select"
+                H3("Compare Answers"),
+                Grid(
+                    Card(
+                        H4(pair[0]['type']),
+                        P(pair[0]['text']),
+                        *([] if not pair[0]['sources'] else [P("Sources:", pair[0]['sources'])]),
+                        Form(
+                            Hidden(name="answer_id", value=pair[0]['record_id']),
+                            Hidden(name="answer_type", value="user" if pair[0]['type'] == 'User Answer' else "llm"),
+                            Hidden(name="question_id", value=id),
+                            Button("Select as Best Answer", type="submit", cls="outline"),
+                            hx_post=f"/best-answers/{id}/select"
+                        )
+                    ),
+                    Card(
+                        H4(pair[1]['type']),
+                        P(pair[1]['text']),
+                        *([] if not pair[1]['sources'] else [P("Sources:", pair[1]['sources'])]),
+                        Form(
+                            Hidden(name="answer_id", value=pair[1]['record_id']),
+                            Hidden(name="answer_type", value="user" if pair[1]['type'] == 'User Answer' else "llm"),
+                            Hidden(name="question_id", value=id),
+                            Button("Select as Best Answer", type="submit", cls="outline"),
+                            hx_post=f"/best-answers/{id}/select"
+                        )
+                    )
                 )
-            ) for i, answer in enumerate(all_answers)],
+            ) for pair in answer_pairs],
+            H3("Rate All Sources"),
+            Form(
+                P("Review and rate all sources:"),
+                Ul(*[Li(
+                    Grid(
+                        # Rank input for sorting
+                        Input(type="number", 
+                              name=f"rank_{u.id}", 
+                              value="0", 
+                              min="0", 
+                              max=str(len(all_urls)),
+                              style="width: 60px;"),
+                        # URL display
+                        P(u.url),
+                        # Relevance toggle switch
+                        Group(
+                            Input(
+                                type="checkbox",
+                                role="switch",
+                                name=f"relevant_{u.id}",
+                                id=f"relevant_{u.id}"
+                            ),
+                            Label("Relevant", for_=f"relevant_{u.id}")
+                        ),
+                        # Source indicator
+                        P(f"Source: {u.source}", 
+                          style="color: var(--pico-muted-color);")
+                    )
+                ) for u in all_urls], 
+                cls="url-ranking"),
+                Button("Save Source Ratings", type="submit"),
+                hx_post=f"/best-answers/{id}/rate-sources",
+                hx_target="#rating-result"
+            ),
+            Div(id="rating-result"),
             A("Back to Questions", href="/best-answers", cls="button")
         )
     )
@@ -372,6 +432,34 @@ async def post(request, id: int):
     return Card(
         H3("Best Answer Selected"),
         P("The selected answer has been marked as the best answer for this question."),
+        A("Back to Questions", href="/best-answers", cls="button")
+    )
+
+@rt("/best-answers/{id}/rate-sources")
+async def post(request, id: int):
+    # Get form data
+    form_data = await request.form()
+    
+    # Get all URLs for this question
+    url_list = urls(where="question_id = ?", where_args=[id])
+    
+    # Extract URL rankings and relevance from form
+    url_data = []
+    for u in url_list:
+        rank = form_data.get(f"rank_{u.id}", "0")
+        relevant = "1" if form_data.get(f"relevant_{u.id}") else "0"
+        url_data.append(f"{u.url}:{rank}:{relevant}")
+    
+    # Update all answers for this question with the URL data
+    answer_records = answers(where="question_id = ?", where_args=[id])
+    for a in answer_records:
+        answers.update(dict(
+            url_ranking=",".join(url_data)
+        ), a.id)
+    
+    return Card(
+        H3("Source Ratings Saved"),
+        P("Your source ratings have been saved successfully."),
         A("Back to Questions", href="/best-answers", cls="button")
     )
 
