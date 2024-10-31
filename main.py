@@ -1,6 +1,6 @@
 from fasthtml.common import (
     A, Button, Card, Container, Div, Form, Grid, Group, H2, H3, H4, Hidden,
-    Input, Li, P, Textarea, Title, Titled, Ul, Label,
+    Input, Li, P, Textarea, Title, Titled, Ul, Label, Style,
     FastHTML, fast_app, serve,
     RedirectResponse, database
 )
@@ -37,7 +37,179 @@ Question = questions.dataclass()
 Url = urls.dataclass()
 Answer = answers.dataclass()
 
-app, rt = fast_app()
+
+app, rt = fast_app(htmlkw={'data-theme': 'light'}, hdrs=[Style("""
+    /* Global styles */
+    :root {
+        --primary-color: #4361ee;
+        --secondary-color: #3f37c9;
+        --accent-color: #4895ef;
+        --success-color: #4cc9f0;
+        --background-color: #f8f9fa;
+        --text-color: #212529;
+        --border-radius: 8px;
+        --spacing-sm: 0.5rem;
+        --spacing-md: 1rem;
+        --spacing-lg: 2rem;
+    }
+
+    body {
+        background-color: var(--background-color);
+        color: var(--text-color);
+        line-height: 1.6;
+    }
+
+    /* Typography */
+    h1, h2, h3, h4 {
+        margin-bottom: var(--spacing-md);
+        color: var(--text-color);
+    }
+
+    h1 { font-size: 2.5rem; }
+    h2 { font-size: 2rem; }
+    h3 { font-size: 1.75rem; }
+    h4 { font-size: 1.5rem; }
+
+    /* Layout */
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: var(--spacing-lg);
+    }
+
+    .grid {
+        gap: var(--spacing-md);
+    }
+
+    /* Cards */
+    .card {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: var(--spacing-lg);
+        margin-bottom: var(--spacing-lg);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .stats-card {
+        background: linear-gradient(to right, #ffffff, #f8f9fa);
+    }
+
+    /* Forms */
+    input, textarea {
+        border: 1px solid #dee2e6;
+        border-radius: var(--border-radius);
+        padding: var(--spacing-sm);
+        width: 100%;
+        margin-bottom: var(--spacing-md);
+    }
+
+    textarea {
+        min-height: 150px;
+    }
+
+    /* Buttons */
+    .button-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: var(--spacing-md);
+        margin: var(--spacing-lg) 0;
+    }
+
+    button, .button {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: var(--border-radius);
+        padding: var(--spacing-sm) var(--spacing-md);
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+
+    button:hover, .button:hover {
+        background-color: var(--secondary-color);
+    }
+
+    button.outline, .button.outline {
+        background-color: transparent;
+        border: 2px solid var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    button.outline:hover, .button.outline:hover {
+        background-color: var(--primary-color);
+        color: white;
+    }
+
+    /* Lists */
+    .question-list {
+        list-style: none;
+        padding: 0;
+    }
+
+    .question-list li {
+        padding: var(--spacing-md);
+        margin-bottom: var(--spacing-sm);
+        background: white;
+        border-radius: var(--border-radius);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease;
+    }
+
+    .question-list li:hover {
+        transform: translateX(5px);
+    }
+
+    .url-list {
+        list-style: none;
+        padding: 0;
+    }
+
+    .url-list li {
+        padding: var(--spacing-sm);
+        margin-bottom: var(--spacing-sm);
+        background: #f8f9fa;
+        border-radius: var(--border-radius);
+    }
+
+    /* Answer sections */
+    .answer-text {
+        background: #f8f9fa;
+        padding: var(--spacing-md);
+        border-radius: var(--border-radius);
+        margin-bottom: var(--spacing-md);
+    }
+
+    .answer-section {
+        margin: var(--spacing-lg) 0;
+    }
+
+    /* URL ranking section */
+    .url-ranking {
+        list-style: none;
+        padding: 0;
+    }
+
+    .url-ranking li {
+        padding: var(--spacing-md);
+        margin-bottom: var(--spacing-sm);
+        background: #f8f9fa;
+        border-radius: var(--border-radius);
+    }
+
+    /* Stats list */
+    .stats-list {
+        list-style: none;
+        padding: 0;
+    }
+
+    .stats-list li {
+        padding: var(--spacing-md);
+        margin-bottom: var(--spacing-sm);
+        background: #f8f9fa;
+        border-radius: var(--border-radius);
+        border-left: 4px solid var(--primary-color);
+    }
+""")])
 
 # Debug mode for LLM simulation
 DEBUG_MODE = True
@@ -59,7 +231,7 @@ def get():
     new_question_form = Form(
         Group(
             Input(id="question", name="question", placeholder="Enter your question"),
-            Button("Submit Question", type="submit")
+            Button("Submit Question", type="submit", cls="primary")
         ),
         hx_post="/questions",
         hx_target="#question-section"
@@ -69,18 +241,20 @@ def get():
     question_list = Ul(
         *[Li(
             A(q.text, hx_get=f"/questions/{q.id}", hx_target="#question-section")
-        ) for q in existing_questions]
+        ) for q in existing_questions],
+        cls="question-list"
     ) if existing_questions else P("No questions yet")
 
-    # Add link to best answers page
-    best_answers_link = A("View Questions with Multiple Answers", href="/best-answers", cls="button")
+    # Add links to best answers and top answers pages
+    best_answers_link = A("View Questions with Multiple Answers", href="/best-answers", cls="button outline")
+    top_answers_link = A("View Top Answers & Sources", href="/top-answers", cls="button outline")
 
     return Titled("RAG Evaluation Tool",
         Container(
             H2("Submit a New Question"),
             new_question_form,
             H2("Or Choose an Existing Question"),
-            best_answers_link,
+            Div(best_answers_link, top_answers_link, cls="button-grid"),
             question_list,
             Div(id="question-section")
         )
@@ -112,7 +286,7 @@ def get(id: int):
     url_form = Form(
         Group(
             Input(id="url", name="url", placeholder="Enter a relevant URL"),
-            Button("Add URL", type="submit")
+            Button("Add URL", type="submit", cls="outline")
         ),
         hx_post=f"/questions/{id}/urls",
         hx_target="#url-list"
@@ -121,7 +295,7 @@ def get(id: int):
     # List of submitted URLs
     url_list = Div(
         H3("Submitted URLs"),
-        Ul(*[Li(u.url) for u in existing_urls]) if existing_urls else P("No URLs submitted yet"),
+        Ul(*[Li(u.url) for u in existing_urls], cls="url-list") if existing_urls else P("No URLs submitted yet"),
         id="url-list"
     )
     
@@ -130,10 +304,11 @@ def get(id: int):
         Group(
             H3("Write Your Perfect Answer"),
             Textarea(id="user_answer", name="user_answer", rows=10, placeholder="Write your answer here, referencing the URLs where appropriate"),
-            Button("Submit Answer", type="submit")
+            Button("Submit Answer", type="submit", cls="primary")
         ),
         hx_post=f"/questions/{id}/user-answer",
-        hx_target="#answer-section"
+        hx_target="#answer-section",
+        cls="answer-section"
     )
     
     return Card(
@@ -141,7 +316,8 @@ def get(id: int):
         url_form,
         url_list,
         answer_form,
-        Div(id="answer-section")
+        Div(id="answer-section"),
+        cls="card"
     )
 
 @rt("/questions/{id}/urls")
@@ -153,7 +329,7 @@ async def post(request, id: int):
     urls.insert(dict(question_id=id, url=url, source="user"))
     # Return updated URL list
     url_list = urls(where="question_id = ?", where_args=[id])
-    return Ul(*[Li(u.url) for u in url_list])
+    return Ul(*[Li(u.url) for u in url_list], cls="url-list")
 
 @rt("/questions/{id}/user-answer")
 async def post(request, id: int):
@@ -197,12 +373,12 @@ async def post(request, id: int):
         Grid(
             Card(
                 H4("Your Answer"),
-                P(user_answer),
+                P(user_answer, cls="answer-text"),
                 header="User Generated"
             ),
             Card(
                 H4("LLM Answer"),
-                P(llm_answer),
+                P(llm_answer, cls="answer-text"),
                 P("Sources:", ", ".join(llm_sources)),
                 header="AI Generated"
             )
@@ -244,11 +420,12 @@ async def post(request, id: int):
                 rows=10,
                 placeholder="Write the perfect answer combining the best of both responses"
             ),
-            Button("Submit Final Answer", type="submit"),
+            Button("Submit Final Answer", type="submit", cls="primary"),
             hx_post=f"/questions/{id}/final-answer/{answer.id}",
             hx_target="#final-section"
         ),
-        Div(id="final-section")
+        Div(id="final-section"),
+        cls="card"
     )
 
 @rt("/questions/{qid}/final-answer/{aid}")
@@ -274,7 +451,8 @@ async def post(request, qid: int, aid: int):
     return Card(
         H3("Evaluation Complete"),
         P("Your final answer and URL evaluations have been saved."),
-        A("Start New Evaluation", href="/", cls="button")
+        A("Start New Evaluation", href="/", cls="button outline"),
+        cls="card"
     )
 
 @rt("/best-answers")
@@ -293,7 +471,8 @@ def get():
         *[Li(
             A(f"{q.text} ({count} answers)", 
               href=f"/best-answers/{q.id}")
-        ) for q, count in questions_with_answers]
+        ) for q, count in questions_with_answers],
+        cls="question-list"
     ) if questions_with_answers else P("No questions with multiple answers yet")
 
     return Titled("Questions with Multiple Answers",
@@ -301,7 +480,7 @@ def get():
             H2("Select Best Answer"),
             P("The following questions have multiple answers. Click to select the best one."),
             question_list,
-            A("Back to Home", href="/", cls="button")
+            A("Back to Home", href="/", cls="button outline")
         )
     )
 
@@ -347,7 +526,7 @@ def get(id: int):
                 Grid(
                     Card(
                         H4(pair[0]['type']),
-                        P(pair[0]['text']),
+                        P(pair[0]['text'], cls="answer-text"),
                         *([] if not pair[0]['sources'] else [P("Sources:", pair[0]['sources'])]),
                         Form(
                             Hidden(name="answer_id", value=pair[0]['record_id']),
@@ -355,11 +534,12 @@ def get(id: int):
                             Hidden(name="question_id", value=id),
                             Button("Select as Best Answer", type="submit", cls="outline"),
                             hx_post=f"/best-answers/{id}/select"
-                        )
+                        ),
+                        cls="card"
                     ),
                     Card(
                         H4(pair[1]['type']),
-                        P(pair[1]['text']),
+                        P(pair[1]['text'], cls="answer-text"),
                         *([] if not pair[1]['sources'] else [P("Sources:", pair[1]['sources'])]),
                         Form(
                             Hidden(name="answer_id", value=pair[1]['record_id']),
@@ -367,9 +547,11 @@ def get(id: int):
                             Hidden(name="question_id", value=id),
                             Button("Select as Best Answer", type="submit", cls="outline"),
                             hx_post=f"/best-answers/{id}/select"
-                        )
+                        ),
+                        cls="card"
                     )
-                )
+                ),
+                cls="card"
             ) for pair in answer_pairs],
             H3("Rate All Sources"),
             Form(
@@ -401,12 +583,12 @@ def get(id: int):
                     )
                 ) for u in all_urls], 
                 cls="url-ranking"),
-                Button("Save Source Ratings", type="submit"),
+                Button("Save Source Ratings", type="submit", cls="primary"),
                 hx_post=f"/best-answers/{id}/rate-sources",
                 hx_target="#rating-result"
             ),
             Div(id="rating-result"),
-            A("Back to Questions", href="/best-answers", cls="button")
+            A("Back to Questions", href="/best-answers", cls="button outline")
         )
     )
 
@@ -432,7 +614,8 @@ async def post(request, id: int):
     return Card(
         H3("Best Answer Selected"),
         P("The selected answer has been marked as the best answer for this question."),
-        A("Back to Questions", href="/best-answers", cls="button")
+        A("Back to Questions", href="/best-answers", cls="button outline"),
+        cls="card"
     )
 
 @rt("/best-answers/{id}/rate-sources")
@@ -460,7 +643,83 @@ async def post(request, id: int):
     return Card(
         H3("Source Ratings Saved"),
         P("Your source ratings have been saved successfully."),
-        A("Back to Questions", href="/best-answers", cls="button")
+        A("Back to Questions", href="/best-answers", cls="button outline"),
+        cls="card"
+    )
+
+@rt("/top-answers")
+def get():
+    # Get all questions
+    all_questions = questions()
+    
+    # Create list of questions
+    question_list = Ul(
+        *[Li(
+            A(q.text, href=f"/top-answers/{q.id}")
+        ) for q in all_questions],
+        cls="question-list"
+    ) if all_questions else P("No questions yet")
+
+    return Titled("Top Answers & Sources",
+        Container(
+            H2("Select a Question"),
+            P("Click on a question to see its top answers and most relevant sources."),
+            question_list,
+            A("Back to Home", href="/", cls="button outline")
+        )
+    )
+
+@rt("/top-answers/{id}")
+def get(id: int):
+    q = questions[id]
+    answer_records = answers(where="question_id = ?", where_args=[id])
+    
+    # Count frequency of each final answer
+    answer_counts = {}
+    for record in answer_records:
+        if record.final_answer:
+            answer_counts[record.final_answer] = answer_counts.get(record.final_answer, 0) + 1
+    
+    # Sort answers by frequency
+    sorted_answers = sorted(answer_counts.items(), key=lambda x: x[1], reverse=True)
+    
+    # Count frequency of relevant sources
+    url_counts = {}
+    for record in answer_records:
+        if record.url_ranking:
+            for url_data in record.url_ranking.split(','):
+                # Split on last two colons to handle URLs containing colons
+                parts = url_data.rsplit(':', 2)
+                if len(parts) == 3:
+                    url, _, relevant = parts
+                    if relevant == "1":
+                        url_counts[url] = url_counts.get(url, 0) + 1
+    
+    # Sort sources by frequency
+    sorted_sources = sorted(url_counts.items(), key=lambda x: x[1], reverse=True)
+    
+    return Titled(f"Top Answers & Sources for: {q.text}",
+        Container(
+            H2(q.text),
+            Card(
+                H3("Most Selected Answers"),
+                Ul(*[Li(
+                    P(f"Selected {count} times:"),
+                    P(answer, cls="answer-text")
+                ) for answer, count in sorted_answers], cls="stats-list") if sorted_answers else P("No answers selected yet"),
+                header="Top Answers",
+                cls="stats-card"
+            ),
+            Card(
+                H3("Most Relevant Sources"),
+                Ul(*[Li(
+                    f"{url} (marked relevant {count} times)"
+                ) for url, count in sorted_sources], cls="stats-list") if sorted_sources else P("No sources marked as relevant yet"),
+                header="Top Sources",
+                cls="stats-card"
+            ),
+            A("Back to Questions", href="/top-answers", cls="button outline")
+        )
     )
 
 def redirect_to_question(id: int):
